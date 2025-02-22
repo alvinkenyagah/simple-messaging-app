@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Messaging App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: none;
+        }
+        .chat-container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin-top: 20px;
+            height: 400px;
+            overflow-y: auto;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .sent {
+            background-color: #e3f2fd;
+            margin-left: 20%;
+        }
+        .received {
+            background-color: #f5f5f5;
+            margin-right: 20%;
+        }
+        .contact {
+            cursor: pointer;
+            padding: 5px;
+            margin: 5px 0;
+        }
+        .contact:hover {
+            background-color: #f0f0f0;
+        }
+        #loginForm, #signupForm {
+            margin-bottom: 20px;
+        }
+        .flex {
+            display: flex;
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Form -->
+    <div id="loginForm">
+        <h2>Login</h2>
+        <input type="text" id="loginUsername" placeholder="Username">
+        <input type="password" id="loginPassword" placeholder="Password">
+        <button onclick="login()">Login</button>
+    </div>
+
+    <!-- Signup Form -->
+    <div id="signupForm">
+        <h2>Signup</h2>
+        <input type="text" id="signupUsername" placeholder="Username">
+        <input type="password" id="signupPassword" placeholder="Password">
+        <button onclick="signup()">Signup</button>
+    </div>
+
+    <!-- Main Container -->
+    <div id="mainContainer" class="container">
+        <h2>Welcome <span id="username"></span></h2>
+        <button onclick="logout()">Logout</button>
+        
+        <div class="flex">
+            <!-- Contacts Section -->
+            <div style="width: 30%;">
+                <h3>Contacts</h3>
+                <input type="text" id="searchUser" placeholder="Search users...">
+                <button onclick="searchUsers()">Search</button>
+                <div id="searchResults"></div>
+                <h4>My Contacts</h4>
+                <div id="contactsList"></div>
+            </div>
+
+            <!-- Chat Section -->
+            <div style="width: 70%;">
+                <h3>Chat with: <span id="currentChat"></span></h3>
+                <div id="chatContainer" class="chat-container"></div>
+                <div style="margin-top: 10px;">
+                    <input type="text" id="messageInput" placeholder="Type a message...">
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+       const API_URL = 'http://localhost:3000'; // Adjust to your backend URL
+let currentToken = null;
+let selectedUserId = null;
+
+async function signup() {
+    const username = document.getElementById('signupUsername').value;
+    const password = document.getElementById('signupPassword').value;
+
+    try {
+        const response = await fetch(`${API_URL}/users/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            alert('Signup successful. You can now log in.');
+        } else {
+            alert(data.error);
+        }
+    } catch (error) {
+        alert('Error during signup');
+    }
+}
+
+async function login() {
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+
+    try {
+        const response = await fetch(`${API_URL}/users/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            currentToken = data.token;
+            document.getElementById('mainContainer').style.display = 'block';
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('username').textContent = username;
+
+            await loadContacts(); // Fetch contacts on login
+            initializeWebSocket();
+        } else {
+            alert(data.error);
+        }
+    } catch (error) {
+        alert('Error during login');
+    }
+}
+
+async function searchUsers() {
+    const query = document.getElementById('searchQuery').value;
+    try {
+        const response = await fetch(`${API_URL}/users/search?query=${query}`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        const users = await response.json();
+        const resultsDiv = document.getElementById('searchResults');
+        resultsDiv.innerHTML = '';
+
+        users.forEach(user => {
+            const div = document.createElement('div');
+            div.className = 'user-result';
+            div.textContent = user.username;
+            div.onclick = () => addContact(user._id);
+            resultsDiv.appendChild(div);
+        });
+    } catch (error) {
+        alert('Error searching users');
+    }
+}
+
+async function addContact(userId) {
+    try {
+        const response = await fetch(`${API_URL}/users/contacts/add`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ contact_user_id: userId })
+        });
+
+        if (response.ok) {
+            alert('Contact added successfully');
+            await loadContacts(); // Reload contact list
+        }
+    } catch (error) {
+        alert('Error adding contact');
+    }
+}
+
+async function loadContacts() {
+    try {
+        const response = await fetch(`${API_URL}/users/contacts`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        const contacts = await response.json();
+        const contactsList = document.getElementById('contactsList');
+        contactsList.innerHTML = '';
+
+        contacts.forEach(contact => {
+            const div = document.createElement('div');
+            div.className = 'contact';
+            div.textContent = contact.username;
+            div.onclick = () => selectContact(contact._id, contact.username);
+            contactsList.appendChild(div);
+        });
+    } catch (error) {
+        alert('Error loading contacts');
+    }
+}
+
+function selectContact(userId, username) {
+    selectedUserId = userId;
+    document.getElementById('chatHeader').textContent = `Chat with ${username}`;
+}
+
+
+        // WebSocket
+        function initializeWebSocket() {
+            ws = new WebSocket(`ws://localhost:3000?token=${currentToken}`);
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'new_message' && data.message.sender === selectedContact) {
+                    appendMessage(data.message, false);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket connection closed');
+            };
+        }
+
+        // User Search and Contacts
+        async function searchUsers() {
+            const searchTerm = document.getElementById('searchUser').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/users/search?username=${searchTerm}`, {
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
+                const users = await response.json();
+                
+                const searchResults = document.getElementById('searchResults');
+                searchResults.innerHTML = '';
+                users.forEach(user => {
+                    const div = document.createElement('div');
+                    div.className = 'contact';
+                    div.textContent = user.username;
+                    div.onclick = () => addContact(user._id);
+                    searchResults.appendChild(div);
+                });
+            } catch (error) {
+                alert('Error searching users');
+            }
+        }
+
+
+        // Update addContact() to Refresh List
+
+    async function addContact(userId) {
+    try {
+        const response = await fetch(`${API_URL}/users/contacts/add`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ contact_user_id: userId })
+        });
+
+        if (response.ok) {
+            alert('Contact added successfully');
+            await loadContacts(); // Reload contact list
+        }
+    } catch (error) {
+        alert('Error adding contact');
+    }
+}
+
+
+
+        // Messaging Functions
+        async function sendMessage() {
+            if (!selectedContact) {
+                alert('Please select a contact first');
+                return;
+            }
+
+            const messageText = document.getElementById('messageInput').value;
+            if (!messageText.trim()) return;
+
+            try {
+                const response = await fetch(`${API_URL}/messages/send`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        receiver_user_id: selectedContact,
+                        message: messageText
+                    })
+                });
+
+                if (response.ok) {
+                    document.getElementById('messageInput').value = '';
+                    // Append message to chat
+                    appendMessage({
+                        message: messageText,
+                        timestamp: new Date(),
+                        sender: currentUserId
+                    }, true);
+                }
+            } catch (error) {
+                alert('Error sending message');
+            }
+        }
+
+        async function loadMessages(userId) {
+            try {
+                const response = await fetch(`${API_URL}/messages/${userId}`, {
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
+                const messages = await response.json();
+                
+                const chatContainer = document.getElementById('chatContainer');
+                chatContainer.innerHTML = '';
+                messages.forEach(msg => appendMessage(msg, msg.sender === currentUserId));
+            } catch (error) {
+                alert('Error loading messages');
+            }
+        }
+
+        function appendMessage(message, sent) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sent ? 'sent' : 'received'}`;
+            messageDiv.textContent = message.message;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Event Listeners
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
