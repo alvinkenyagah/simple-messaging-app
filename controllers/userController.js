@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Message = require('../models/Message');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
@@ -61,7 +62,33 @@ const userController = {
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
+  },
+
+  deleteContact: async (req, res) => {
+    try {
+      const user = await User.findById(req.user.userId);
+      
+      // Remove contact from user's list
+      user.contacts = user.contacts.filter(id => id.toString() !== req.body.contact_user_id);
+      await user.save();
+
+      // Delete messages between the two users
+      await Message.deleteMany({
+        $or: [
+          { sender: req.user.userId, receiver: req.body.contact_user_id },
+          { sender: req.body.contact_user_id, receiver: req.user.userId }
+        ]
+      });
+
+      res.json({ message: 'Contact deleted and messages removed' });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
   }
+
+
+
+
 
 
 };

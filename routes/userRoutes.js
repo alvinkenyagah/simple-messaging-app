@@ -10,4 +10,7 @@ router.post('/contacts/add', auth, userController.addContact);
 
 router.get('/contacts', auth, userController.getContacts);
 
+
+router.delete('/users/contacts/delete', auth, userController.deleteContact);
+
 module.exports = router;

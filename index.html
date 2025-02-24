@@ -36,16 +36,20 @@
             cursor: pointer;
             padding: 5px;
             margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .contact:hover {
             background-color: #f0f0f0;
         }
-        #loginForm, #signupForm {
-            margin-bottom: 20px;
-        }
-        .flex {
-            display: flex;
-            gap: 20px;
+        .delete-btn {
+            background-color: red;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 3px 6px;
+            border-radius: 4px;
         }
     </style>
 </head>
@@ -95,266 +99,174 @@
     </div>
 
     <script>
-       const API_URL = 'http://localhost:3000'; // Adjust to your backend URL
-let currentToken = null;
-let selectedUserId = null;
+        const API_URL = 'http://localhost:3000'; 
+        let currentToken = null;
+        let selectedUserId = null;
 
-async function signup() {
-    const username = document.getElementById('signupUsername').value;
-    const password = document.getElementById('signupPassword').value;
+        async function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
 
-    try {
-        const response = await fetch(`${API_URL}/users/signup`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-            alert('Signup successful. You can now log in.');
-        } else {
-            alert(data.error);
-        }
-    } catch (error) {
-        alert('Error during signup');
-    }
-}
-
-async function login() {
-    const username = document.getElementById('loginUsername').value;
-    const password = document.getElementById('loginPassword').value;
-
-    try {
-        const response = await fetch(`${API_URL}/users/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-            currentToken = data.token;
-            document.getElementById('mainContainer').style.display = 'block';
-            document.getElementById('loginForm').style.display = 'none';
-            document.getElementById('signupForm').style.display = 'none';
-            document.getElementById('username').textContent = username;
-
-            await loadContacts(); // Fetch contacts on login
-            initializeWebSocket();
-        } else {
-            alert(data.error);
-        }
-    } catch (error) {
-        alert('Error during login');
-    }
-}
-
-async function searchUsers() {
-    const query = document.getElementById('searchQuery').value;
-    try {
-        const response = await fetch(`${API_URL}/users/search?query=${query}`, {
-            headers: { 'Authorization': `Bearer ${currentToken}` }
-        });
-
-        const users = await response.json();
-        const resultsDiv = document.getElementById('searchResults');
-        resultsDiv.innerHTML = '';
-
-        users.forEach(user => {
-            const div = document.createElement('div');
-            div.className = 'user-result';
-            div.textContent = user.username;
-            div.onclick = () => addContact(user._id);
-            resultsDiv.appendChild(div);
-        });
-    } catch (error) {
-        alert('Error searching users');
-    }
-}
-
-async function addContact(userId) {
-    try {
-        const response = await fetch(`${API_URL}/users/contacts/add`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${currentToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ contact_user_id: userId })
-        });
-
-        if (response.ok) {
-            alert('Contact added successfully');
-            await loadContacts(); // Reload contact list
-        }
-    } catch (error) {
-        alert('Error adding contact');
-    }
-}
-
-async function loadContacts() {
-    try {
-        const response = await fetch(`${API_URL}/users/contacts`, {
-            headers: { 'Authorization': `Bearer ${currentToken}` }
-        });
-
-        const contacts = await response.json();
-        const contactsList = document.getElementById('contactsList');
-        contactsList.innerHTML = '';
-
-        contacts.forEach(contact => {
-            const div = document.createElement('div');
-            div.className = 'contact';
-            div.textContent = contact.username;
-            div.onclick = () => selectContact(contact._id, contact.username);
-            contactsList.appendChild(div);
-        });
-    } catch (error) {
-        alert('Error loading contacts');
-    }
-}
-
-function selectContact(userId, username) {
-    selectedUserId = userId;
-    document.getElementById('chatHeader').textContent = `Chat with ${username}`;
-}
-
-
-        // WebSocket
-        function initializeWebSocket() {
-            ws = new WebSocket(`ws://localhost:3000?token=${currentToken}`);
-            
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'new_message' && data.message.sender === selectedContact) {
-                    appendMessage(data.message, false);
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
-
-            ws.onclose = () => {
-                console.log('WebSocket connection closed');
-            };
-        }
-
-        // User Search and Contacts
-        async function searchUsers() {
-            const searchTerm = document.getElementById('searchUser').value;
-            
             try {
-                const response = await fetch(`${API_URL}/users/search?username=${searchTerm}`, {
+                const response = await fetch(`${API_URL}/users/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    currentToken = data.token;
+                    document.getElementById('mainContainer').style.display = 'block';
+                    document.getElementById('loginForm').style.display = 'none';
+                    document.getElementById('signupForm').style.display = 'none';
+                    document.getElementById('username').textContent = username;
+
+                    await loadContacts();
+                } else {
+                    alert(data.error);
+                }
+            } catch (error) {
+                alert('Error during login');
+            }
+        }
+
+        async function loadContacts() {
+            try {
+                const response = await fetch(`${API_URL}/users/contacts`, {
                     headers: { 'Authorization': `Bearer ${currentToken}` }
                 });
-                const users = await response.json();
-                
-                const searchResults = document.getElementById('searchResults');
-                searchResults.innerHTML = '';
-                users.forEach(user => {
+
+                const contacts = await response.json();
+                const contactsList = document.getElementById('contactsList');
+                contactsList.innerHTML = '';
+
+                contacts.forEach(contact => {
                     const div = document.createElement('div');
                     div.className = 'contact';
-                    div.textContent = user.username;
-                    div.onclick = () => addContact(user._id);
-                    searchResults.appendChild(div);
+                    
+                    const span = document.createElement('span');
+                    span.textContent = contact.username;
+                    span.onclick = () => selectContact(contact._id, contact.username);
+                    
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'X';
+                    deleteBtn.className = 'delete-btn';
+                    deleteBtn.onclick = (event) => {
+                        event.stopPropagation();
+                        deleteContact(contact._id);
+                    };
+
+                    div.appendChild(span);
+                    div.appendChild(deleteBtn);
+                    contactsList.appendChild(div);
                 });
             } catch (error) {
-                alert('Error searching users');
+                alert('Error loading contacts');
             }
         }
 
 
-        // Update addContact() to Refresh List
 
-    async function addContact(userId) {
+        async function sendMessage() {
+    if (!selectedUserId) {
+        alert("Please select a contact to chat with.");
+        return;
+    }
+
+    const messageInput = document.getElementById('messageInput');
+    const message = messageInput.value.trim();
+
+    if (message === "") {
+        alert("Message cannot be empty.");
+        return;
+    }
+
     try {
-        const response = await fetch(`${API_URL}/users/contacts/add`, {
+        const response = await fetch(`${API_URL}/messages/send`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${currentToken}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ contact_user_id: userId })
+            body: JSON.stringify({
+                receiver_user_id: selectedUserId,
+                message: message
+            })
         });
 
+        const data = await response.json();
         if (response.ok) {
-            alert('Contact added successfully');
-            await loadContacts(); // Reload contact list
+            messageInput.value = ""; // Clear input after sending
+            await loadMessages(selectedUserId); // Refresh messages
+        } else {
+            alert(data.error);
         }
     } catch (error) {
-        alert('Error adding contact');
+        alert("Error sending message.");
     }
 }
 
 
 
-        // Messaging Functions
-        async function sendMessage() {
-            if (!selectedContact) {
-                alert('Please select a contact first');
-                return;
-            }
 
-            const messageText = document.getElementById('messageInput').value;
-            if (!messageText.trim()) return;
+
+async function loadMessages(userId) {
+    try {
+        const response = await fetch(`${API_URL}/messages/${userId}`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        const messages = await response.json();
+        const chatContainer = document.getElementById('chatContainer');
+        chatContainer.innerHTML = '';
+
+        messages.forEach(msg => {
+            const div = document.createElement('div');
+            div.className = 'message ' + (msg.sender === selectedUserId ? 'received' : 'sent');
+            div.textContent = msg.message;
+            chatContainer.appendChild(div);
+        });
+
+        chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to the latest message
+    } catch (error) {
+        alert("Error loading messages.");
+    }
+}
+
+
+
+
+
+        async function deleteContact(contactId) {
+            if (!confirm('Are you sure you want to delete this contact?')) return;
 
             try {
-                const response = await fetch(`${API_URL}/messages/send`, {
-                    method: 'POST',
+                const response = await fetch(`${API_URL}/users/contacts/delete`, {
+                    method: 'DELETE',
                     headers: {
                         'Authorization': `Bearer ${currentToken}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        receiver_user_id: selectedContact,
-                        message: messageText
-                    })
+                    body: JSON.stringify({ contact_user_id: contactId })
                 });
 
                 if (response.ok) {
-                    document.getElementById('messageInput').value = '';
-                    // Append message to chat
-                    appendMessage({
-                        message: messageText,
-                        timestamp: new Date(),
-                        sender: currentUserId
-                    }, true);
+                    alert('Contact deleted successfully');
+                    await loadContacts();
+                } else {
+                    const data = await response.json();
+                    alert(data.error);
                 }
             } catch (error) {
-                alert('Error sending message');
+                alert('Error deleting contact');
             }
         }
 
-        async function loadMessages(userId) {
-            try {
-                const response = await fetch(`${API_URL}/messages/${userId}`, {
-                    headers: { 'Authorization': `Bearer ${currentToken}` }
-                });
-                const messages = await response.json();
-                
-                const chatContainer = document.getElementById('chatContainer');
-                chatContainer.innerHTML = '';
-                messages.forEach(msg => appendMessage(msg, msg.sender === currentUserId));
-            } catch (error) {
-                alert('Error loading messages');
-            }
+        function selectContact(userId, username) {
+            selectedUserId = userId;
+            document.getElementById('currentChat').textContent = username;
         }
-
-        function appendMessage(message, sent) {
-            const chatContainer = document.getElementById('chatContainer');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sent ? 'sent' : 'received'}`;
-            messageDiv.textContent = message.message;
-            chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        // Event Listeners
-        document.getElementById('messageInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
     </script>
 </body>
 </html>
