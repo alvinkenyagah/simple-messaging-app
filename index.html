@@ -79,8 +79,8 @@
             <!-- Contacts Section -->
             <div style="width: 30%;">
                 <h3>Contacts</h3>
-                <input type="text" id="searchUser" placeholder="Search users...">
-                <button onclick="searchUsers()">Search</button>
+                <input type="text" id="searchInput" placeholder="Search for users...">
+                <button onclick="searchUsers(document.getElementById('searchInput').value)">Search</button>
                 <div id="searchResults"></div>
                 <h4>My Contacts</h4>
                 <div id="contactsList"></div>
@@ -102,6 +102,29 @@
         const API_URL = 'http://localhost:3000'; 
         let currentToken = null;
         let selectedUserId = null;
+
+
+        async function signup() {
+    const username = document.getElementById('signupUsername').value;
+    const password = document.getElementById('signupPassword').value;
+
+    try {
+        const response = await fetch(`${API_URL}/users/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            alert('Signup successful. You can now log in.');
+        } else {
+            alert(data.error);
+        }
+    } catch (error) {
+        alert('Error during signup');
+    }
+}
 
         async function login() {
             const username = document.getElementById('loginUsername').value;
@@ -130,6 +153,39 @@
                 alert('Error during login');
             }
         }
+
+
+        function logout() {
+            currentToken = null;  // Clear token
+            selectedUserId = null; // Clear selected user
+            document.getElementById('mainContainer').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('signupForm').style.display = 'block';
+        }
+
+
+
+        async function addContact(userId) {
+            try {
+                const response = await fetch(`${API_URL}/users/contacts/add`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ contact_user_id: userId })
+                });
+
+                if (response.ok) {
+                    alert('Contact added successfully');
+                    await loadContacts(); // Reload contacts
+                }
+            } catch (error) {
+                alert('Error adding contact');
+            }
+        }
+
+
 
         async function loadContacts() {
             try {
@@ -234,6 +290,39 @@ async function loadMessages(userId) {
     }
 }
 
+async function searchUsers(username) {
+    try {
+        const response = await fetch(`${API_URL}/users/search?username=${encodeURIComponent(username)}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${currentToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            displaySearchResults(data);
+        } else {
+            alert(data.error);
+        }
+    } catch (error) {
+        console.error("Error searching users:", error);
+        alert("An error occurred while searching for users.");
+    }
+}
+
+function displaySearchResults(users) {
+    const resultsContainer = document.getElementById('searchResults');
+    resultsContainer.innerHTML = '';
+
+    users.forEach(user => {
+        const userElement = document.createElement('div');
+        userElement.textContent = user.username;
+        userElement.innerHTML += ` <button onclick="addContact('${user._id}')">Add</button>`;
+        resultsContainer.appendChild(userElement);
+    });
+}
 
 
 
